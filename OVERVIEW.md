@@ -356,6 +356,121 @@ const MatrixX Symmetry::curvatureCorrection(const MSCEqFState& X, const VectorX&
 
 ---
 
+## What's Identical vs. What's Different: The Linear Algebra Perspective
+
+A common question when studying equivariant filters is: "Is the linear algebra of the Kalman filter the same, or completely different?"
+
+**Short answer:** The core linear algebra machinery is **identical**. The EqF essentially "wraps" standard Kalman filter equations with Lie group operations.
+
+### What's IDENTICAL (Standard Kalman Linear Algebra)
+
+#### Kalman Gain Computation
+
+Both EKF and MSCEqF use the exact same formula:
+
+```
+K = P · Hᵀ · (H · P · Hᵀ + R)⁻¹
+```
+
+**Code Reference:** [`source/msceqf/filter/updater/updater.cpp:384-391`](source/msceqf/filter/updater/updater.cpp)
+
+```cpp
+// Lines 384-391: STANDARD Kalman gain computation
+MatrixX G = X.subCovCols(cols_map_.keys()) * C.transpose();           // P * H'
+MatrixX S = C * X.subCov(cols_map_.keys()) * C.transpose() + R;       // H * P * H' + R
+MatrixX K = G * invS;                                                  // K = P * H' * S^{-1}
+VectorX inn = K * delta;                                               // innovation
+```
+
+#### Covariance Propagation Structure
+
+Both use:
+
+```
+P_pred = Φ · P · Φᵀ + Q_d
+```
+
+#### Covariance Update Structure
+
+Both use:
+
+```
+P_new = P - K · S · Kᵀ   (or equivalent Joseph form)
+```
+
+**Code Reference:** [`source/msceqf/filter/updater/updater.cpp:415`](source/msceqf/filter/updater/updater.cpp)
+
+```cpp
+// Line 415: STANDARD covariance update
+X.cov_ -= K * G.transpose();    // P = P - K * (P * H')' = P - K * H * P
+```
+
+### What's DIFFERENT
+
+| Aspect | Standard EKF | MSCEqF |
+|--------|-------------|--------|
+| **Jacobians source** | Linearizing f(x,u), h(x) around **current state** | Linearizing lifted dynamics around **fixed origin** ξ₀ |
+| **Mean propagation** | `x = f(x, u)` | `X = X · exp(λ·dt)` (right group multiplication) |
+| **Mean update** | `x = x + K·δ` (vector addition) | `X = exp(K·δ) · X` (left group multiplication) |
+| **Curvature correction** | None | `P = exp(-½Γ) · P · exp(-½Γ)ᵀ` (optional) |
+
+**Code Reference:** [`source/msceqf/filter/updater/updater.cpp:399-422`](source/msceqf/filter/updater/updater.cpp)
+
+```cpp
+// Lines 399-412: MEAN UPDATE via LEFT group multiplication (NOT vector addition!)
+X.state_.at(MSCEqFStateElementName::Dd)->updateLeft(inn.segment(...));  // exp(inn) · X
+X.state_.at(MSCEqFStateElementName::E)->updateLeft(inn.segment(...));   // NOT: X + inn
+
+// Lines 418-422: CURVATURE CORRECTION (unique to EqF, optional)
+if (opts_.curvature_correction_) {
+  MatrixX expGamma = Symmetry::curvatureCorrection(X, inn);
+  X.cov_ = expGamma * X.cov_ * expGamma.transpose();  // Extra geometric correction!
+}
+```
+
+### Visual Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        STANDARD KALMAN FILTER                                │
+│                        (Identical in both EKF and EqF)                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Kalman Gain:        K = P · Hᵀ · (H·P·Hᵀ + R)⁻¹                            │
+│  Cov Propagation:    P = Φ · P · Φᵀ + Q                                      │
+│  Cov Update:         P = P - K · H · P                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+                    ▼                               ▼
+    ┌───────────────────────────┐   ┌───────────────────────────────────────┐
+    │      STANDARD EKF         │   │              MSCEqF                   │
+    ├───────────────────────────┤   ├───────────────────────────────────────┤
+    │ Jacobians: ∂f/∂x, ∂h/∂x   │   │ Jacobians: from lifted dynamics       │
+    │ at current estimate       │   │ around fixed origin ξ₀                │
+    ├───────────────────────────┤   ├───────────────────────────────────────┤
+    │ Mean update:              │   │ Mean update:                          │
+    │   x = x + K·δ             │   │   X = exp(K·δ) · X                    │
+    │   (vector addition)       │   │   (group multiplication)              │
+    ├───────────────────────────┤   ├───────────────────────────────────────┤
+    │ Extra corrections: None   │   │ Curvature correction:                 │
+    │                           │   │   P = exp(-½Γ)·P·exp(-½Γ)ᵀ            │
+    └───────────────────────────┘   └───────────────────────────────────────┘
+```
+
+### Key Insight
+
+The equivariant filter is **not** a completely different algorithm from the Kalman filter. Rather, it:
+
+1. **Preserves** the core linear algebra (gain computation, covariance updates)
+2. **Replaces** vector addition with Lie group exponential + multiplication for mean updates
+3. **Computes** Jacobians differently (from lifted dynamics, around fixed origin)
+4. **Adds** an optional curvature correction to account for manifold geometry
+
+This means existing intuition about Kalman filters largely transfers to equivariant filters—the key differences are in how the state manifold is handled geometrically.
+
+---
+
 ## Summary: Why Equivariant?
 
 The equivariant filter provides several advantages:
