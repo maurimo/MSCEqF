@@ -21,10 +21,27 @@
 
 namespace msceqf
 {
+// **EqF_Info**
 /**
- * @brief this class represent the state of the MSCEqF.
+ * @brief This class represents the state of the MSCEqF.
  * This includes the state of the lifted system (element of the symmetry group) and the covariance.
  *
+ * @note **EqF DIFFERENCE FROM STANDARD EKF:**
+ * In a standard EKF, the state is a vector in ℝⁿ representing physical quantities directly.
+ * In MSCEqF, the state X is an element of a **symmetry group** (Lie group) that acts on the
+ * physical state space. The actual physical state ξ is recovered via the group action:
+ *     ξ = φ(X, ξ₀)
+ * where ξ₀ is the fixed origin set at initialization.
+ *
+ * This "lifted system" approach provides:
+ * - Fixed linearization point (ξ₀ never changes)
+ * - Better consistency over long trajectories
+ * - Natural handling of rotation and bias coupling via semi-direct product structure
+ *
+ * @see Paper [1] "Equivariant filter (EqF)" - van Goor et al., IEEE TAC 2022, Section III
+ * @see Paper [2] "Equivariant filter design for inertial navigation systems with input
+ *      measurement biases" (ICRA 2022), Section II-III
+ * @see OVERVIEW.md for detailed explanation
  */
 class MSCEqFState
 {

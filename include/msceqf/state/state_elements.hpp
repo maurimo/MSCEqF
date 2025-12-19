@@ -108,9 +108,18 @@ class MSCEqFStateElement
   uint dof_;  //!< Degrees of freedom of the element (dimension of relative covariance and residual block)
 };
 
+// **EqF_Info**
 /**
  * @brief This struct represent the Semi Direct bias state of the MSCEqF
  *
+ * @note **EqF DIFFERENCE FROM STANDARD EKF:**
+ * In a standard EKF, pose and biases are separate vector states. Here, they are combined
+ * into a single Lie group element: SDB = SE₂(3) ⋉ ℝ⁶ (Semi-Direct Bias group).
+ * This construction ensures bias dynamics are compatible with the symmetry structure.
+ *
+ * @see Paper [2] "Equivariant filter design for inertial navigation systems with input
+ *      measurement biases" (ICRA 2022), Section III-B, Equation (15)
+ * @see OVERVIEW.md for detailed explanation
  */
 struct MSCEqFSDBState final : public MSCEqFStateElement
 {
@@ -124,20 +133,32 @@ struct MSCEqFSDBState final : public MSCEqFStateElement
    * @brief Construct an identity MSCEqFSDBState object
    *
    * @param idx Starting index of the variable in the covariance
+   *
+   * @note 15 DOF = 9 (SE₂(3): rotation + velocity + position) + 6 (biases: gyro + accel)
    */
   MSCEqFSDBState(const uint& idx) : MSCEqFStateElement(idx, 15), Dd_(){};
 
+  // **EqF_Info**
   /**
    * @brief Update the Semi Direct Bias element of the state by right multiplication
    *
    * @param delta Delta vector to update the state element with on the right side
+   *
+   * @note **EqF KEY CONCEPT:** Updates are performed via Lie group multiplication, not vector
+   *       addition. Right multiplication is used for propagation: X_new = X_old · exp(δ)
+   * @see Paper [2] Section IV-A, Equation (25)
    */
   void updateRight(const VectorX& delta) override { Dd_.multiplyRight(SDB::exp(delta)); }
 
+  // **EqF_Info**
   /**
    * @brief Update the Semi Direct Bias element of the state by left multiplication
    *
    * @param delta Delta vector to update the state element with on the left side
+   *
+   * @note **EqF KEY CONCEPT:** Left multiplication is used for measurement updates:
+   *       X_new = exp(δ) · X_old. This differs from standard EKF's x_new = x_old + δ
+   * @see Paper [2] Section IV-C, Equation (28)
    */
   void updateLeft(const VectorX& delta) override { Dd_.multiplyLeft(SDB::exp(delta)); }
 
@@ -148,7 +169,7 @@ struct MSCEqFSDBState final : public MSCEqFStateElement
    */
   std::unique_ptr<MSCEqFStateElement> clone() const override { return std::make_unique<MSCEqFSDBState>(*this); }
 
-  SDB Dd_;  //!< The Semi Direct Bias element of the state
+  SDB Dd_;  //!< The Semi Direct Bias element: SE₂(3) ⋉ ℝ⁶ (Paper [2] Eq. 15)
 };
 
 /**

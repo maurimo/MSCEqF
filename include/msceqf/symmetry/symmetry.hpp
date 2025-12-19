@@ -19,6 +19,31 @@
 
 namespace msceqf
 {
+// **EqF_Info**
+/**
+ * @brief The Symmetry class implements the core equivariant filter operations.
+ *
+ * @note **EqF KEY CONCEPTS:**
+ * This class contains the mathematical operations that distinguish the equivariant filter
+ * from standard EKF approaches:
+ *
+ * 1. **Group Action (φ):** Defines how symmetry group elements transform states
+ *    - Standard EKF: No equivalent concept
+ *    - EqF: ξ = φ(X, ξ₀) maps group elements to physical states
+ *
+ * 2. **Lift Function (λ):** Maps system inputs to Lie algebra
+ *    - Standard EKF: Uses f(x,u) directly
+ *    - EqF: λ(ξ, u) ∈ 𝔤 enables propagation on the group
+ *
+ * 3. **Curvature Correction:** Compensates for manifold geometry
+ *    - Standard EKF: Assumes flat Euclidean space
+ *    - EqF: Applies exp(-½Γ) correction to covariance
+ *
+ * @see Paper [1] "Equivariant filter (EqF)" - van Goor et al., IEEE TAC 2022
+ * @see Paper [2] "Equivariant filter design for inertial navigation systems with input
+ *      measurement biases" (ICRA 2022)
+ * @see OVERVIEW.md for detailed explanation
+ */
 class Symmetry
 {
  public:

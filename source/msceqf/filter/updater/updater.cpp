@@ -354,6 +354,31 @@ void Updater::nonlinearTriangulationResidualJacobian(
   }
 }
 
+// **EqF_Info**
+/**
+ * @brief Performs the MSCEqF measurement update step.
+ *
+ * @note **EqF DIFFERENCES FROM STANDARD EKF:**
+ *
+ * 1. **State Update via Left Group Multiplication:**
+ *    Standard EKF: x_new = x_old + K · δ   (vector addition)
+ *    MSCEqF:       X_new = exp(K · δ) · X   (left multiplication on Lie group)
+ *
+ *    The innovation is exponentiated to a group element and composed
+ *    via group multiplication, not simple vector addition.
+ *
+ * 2. **Curvature Correction (UNIQUE TO EqF):**
+ *    After the standard covariance update P = P - K·S·K', the EqF applies
+ *    an additional curvature correction:
+ *        P_new = exp(-½Γ) · P · exp(-½Γ)ᵀ
+ *
+ *    This accounts for the non-Euclidean geometry of the Lie group manifold.
+ *    Standard EKF has no equivalent - it assumes flat Euclidean space.
+ *
+ * @see Paper [1] "Equivariant filter (EqF)", Section IV, Theorem 2
+ * @see Paper [2] Section IV-C (State Correction), Equation (28)
+ * @see OVERVIEW.md Sections "State Updates via Group Operations" and "Curvature Correction"
+ */
 void Updater::UpdateMSCEqF(MSCEqFState& X, const MatrixX& C, const VectorX& delta, const MatrixX& R) const
 {
   // Compute Kalman gain and innovation

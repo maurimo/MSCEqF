@@ -192,6 +192,25 @@ bool Propagator::propagate(MSCEqFState& X, const SystemState& xi0, fp& timestamp
   return true;
 }
 
+// **EqF_Info**
+/**
+ * @brief Propagates the mean state using the equivariant filter approach.
+ *
+ * @note **EqF DIFFERENCE FROM STANDARD EKF:**
+ * Standard EKF: x_new = f(x, u)  (apply nonlinear dynamics)
+ * MSCEqF:       X_new = X · exp(λ(φ(X, ξ₀), u) · dt)  (group multiplication)
+ *
+ * The key steps are:
+ * 1. Compute current physical state: ξ = φ(X, ξ₀)       [Group action]
+ * 2. Compute lift: λ = lift(ξ, u)                        [Map input to Lie algebra]
+ * 3. Propagate on group: X = X · exp(λ · dt)             [Right multiplication]
+ *
+ * This preserves the symmetry structure and provides better consistency
+ * than direct integration of state dynamics.
+ *
+ * @see Paper [2] Section IV-A (State Propagation), Equations (24)-(25)
+ * @see OVERVIEW.md Section "Propagation on the Symmetry Group"
+ */
 void Propagator::propagateMean(MSCEqFState& X, const SystemState& xi0, const Imu& u, const fp& dt)
 {
   // Compute the Lift lambda
